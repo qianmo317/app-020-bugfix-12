@@ -141,11 +141,15 @@ function roomWorstTravelM(room: Room, doors: Pt[], doorPathMm: number[], exitsIn
   return { worstM: worst / MM_PER_M, point: worstPt };
 }
 
+/**
+ * 房间人数：优先取填写值；未填时按用途密度（㎡/人）由面积估算，
+ * 即 面积 / 密度，密度 ≤ 0（走道等）不计停留人数。改面积后估算值随之变化。
+ */
 function estimateOccupants(room: Room): number {
   if (room.occupants != null && room.occupants >= 0) return room.occupants;
-  const density = OCCUPANCY_DENSITY_M2_PER_PERSON[room.usage] ?? 20;
-  if (density <= 0) return 0;
-  return Math.round(density);
+  const m2PerPerson = OCCUPANCY_DENSITY_M2_PER_PERSON[room.usage] ?? 20;
+  if (m2PerPerson <= 0) return 0;
+  return Math.round(polyAreaM2(room.polygon) / m2PerPerson);
 }
 
 const days = (n: number) => n * 24 * 3600 * 1000;
@@ -301,8 +305,7 @@ export function validateFloor(floor: Floor, rules: RuleSet, now: number = Date.n
         }
       }
     }
-  } else if (walkPolys.length && !exitPts.length) {
-    items.push({ severity: 'error', type: 'EXIT_COUNT', message: '未布置任何安全出口' });
+  // 出口数量不足（含一个都没布置）统一由下方 EXIT_COUNT 检查报告，并给出需要数量
   }
 
   // 灭火器覆盖
@@ -320,13 +323,22 @@ export function validateFloor(floor: Floor, rules: RuleSet, now: number = Date.n
     });
   }
 
-  // 安全出口数量：只看面积
+  // 安全出口数量：面积超限值 或 估算人数超限值 → 需 2 个（人数未填按用途密度 × 面积估算）
   const floorArea = floor.rooms.reduce((s, r) => s + polyAreaM2(r.polygon), 0);
   const occ = floor.rooms.reduce((s, r) => s + estimateOccupants(r), 0);
-  const required = floorArea > rules.exitMinAreaM2 ? 2 : 1;
-  if (exitPts.length && exits.length < required) {
+  const needTwoByArea = floorArea > rules.exitMinAreaM2;
+  const needTwoByOcc = occ > rules.exitMaxOccupants;
+  const required = needTwoByArea || needTwoByOcc ? 2 : 1;
+  if (floor.rooms.length && exits.length < required) {
+    const reason = needTwoByArea && needTwoByOcc
+      ? `面积 ${floorArea.toFixed(0)}㎡ 超过限值 ${rules.exitMinAreaM2}㎡、人数约 ${occ} 超过限值 ${rules.exitMaxOccupants} 人`
+      : needTwoByArea
+        ? `面积 ${floorArea.toFixed(0)}㎡ 超过限值 ${rules.exitMinAreaM2}㎡`
+        : needTwoByOcc
+          ? `人数约 ${occ} 超过限值 ${rules.exitMaxOccupants} 人`
+          : `面积 ${floorArea.toFixed(0)}㎡、人数约 ${occ} 均未超限`;
     items.push({ severity: 'error', type: 'EXIT_COUNT', value: exits.length, limit: required,
-      message: `安全出口 ${exits.length} 个，少于要求数量（面积 ${floorArea.toFixed(0)}㎡ / 人数约 ${occ} → 需 ≥ ${required} 个）` });
+      message: `安全出口 ${exits.length} 个，少于要求数量（${reason} → 需 ≥ ${required} 个）` });
   }
 
   // 检查记录
