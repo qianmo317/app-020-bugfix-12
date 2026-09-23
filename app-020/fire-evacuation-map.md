@@ -95,7 +95,7 @@ type ValidationResult = { checkedAt: string; pass: boolean; items: ValidationIte
 - 破坏性操作（删建筑、删楼层）都有 `confirm` 二次确认；顶栏常驻「数据仅存于本机浏览器 · 断网可用」。
 
 ## 10. 验收标准
-- 单元测试 **7 个文件 / 59 个用例**全部通过（vitest 2.1.9，`npm test`）：疏散距离 20 组、灭火器覆盖 10 组、检查台账 7 组、编号 6 组、store 回归 10 组、规则切换 4 组、性能 2 组。
+- 单元测试 **8 个文件 / 67 个用例**全部通过（vitest 2.1.9，`npm test`）：疏散距离 20 组、灭火器覆盖 10 组、检查台账 7 组、编号 6 组、store 回归 10 组、规则切换 4 组、安全出口数量 8 组、性能 2 组。
 - 疏散距离：20 组沿路径用例与手工沿路径测量的误差 < 0.5m；其中第 04 组必须证明「直线距离 ≤40m 看着合格、沿路径 >50m 实际超标」被判 `TRAVEL_EXCEED` 且 `pass=false`。
 - 灭火器覆盖：10 组未覆盖面积与人工核算（圆面积差集、条带面积）误差 ≤10%，且格心采样总面积与房间面积一致（20×20 房间 = 400㎡）。
 - 台账：过期项 **100%** 出现在校验结果中（L6 按 `facilityId` 对账，无遗漏也无多余）；`damaged`/`missing` 为 error 级且排在最前。
@@ -128,7 +128,7 @@ type ValidationResult = { checkedAt: string; pass: boolean; items: ValidationIte
 
 ```bash
 cd app-020
-npm test                                  # 7 个文件 59 个用例
+npm test                                  # 8 个文件 67 个用例
 docker compose up -d --build
 curl http://localhost:8100/healthz        # 期望输出 ok
 docker compose down

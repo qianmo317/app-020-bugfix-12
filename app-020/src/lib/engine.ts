@@ -141,11 +141,12 @@ function roomWorstTravelM(room: Room, doors: Pt[], doorPathMm: number[], exitsIn
   return { worstM: worst / MM_PER_M, point: worstPt };
 }
 
+/** 未填人数时按用途密度 × 房间面积估算（向上取整，宁多勿少）；走道等密度 0 的用途不计停留人数 */
 function estimateOccupants(room: Room): number {
   if (room.occupants != null && room.occupants >= 0) return room.occupants;
   const density = OCCUPANCY_DENSITY_M2_PER_PERSON[room.usage] ?? 20;
   if (density <= 0) return 0;
-  return Math.round(density);
+  return Math.ceil(polyAreaM2(room.polygon) / density);
 }
 
 const days = (n: number) => n * 24 * 3600 * 1000;
@@ -320,13 +321,15 @@ export function validateFloor(floor: Floor, rules: RuleSet, now: number = Date.n
     });
   }
 
-  // 安全出口数量：只看面积
+  // 安全出口数量：面积或估算人数任一超限即需 2 个
   const floorArea = floor.rooms.reduce((s, r) => s + polyAreaM2(r.polygon), 0);
   const occ = floor.rooms.reduce((s, r) => s + estimateOccupants(r), 0);
-  const required = floorArea > rules.exitMinAreaM2 ? 2 : 1;
+  const areaExceed = floorArea > rules.exitMinAreaM2;
+  const occExceed = occ > rules.exitMaxOccupants;
+  const required = areaExceed || occExceed ? 2 : 1;
   if (exitPts.length && exits.length < required) {
     items.push({ severity: 'error', type: 'EXIT_COUNT', value: exits.length, limit: required,
-      message: `安全出口 ${exits.length} 个，少于要求数量（面积 ${floorArea.toFixed(0)}㎡ / 人数约 ${occ} → 需 ≥ ${required} 个）` });
+      message: `安全出口 ${exits.length} 个，少于要求数量（面积 ${floorArea.toFixed(0)}㎡、人数约 ${occ} —— ${areaExceed ? `面积超限值 ${rules.exitMinAreaM2}㎡` : ''}${areaExceed && occExceed ? '、' : ''}${occExceed ? `人数超限值 ${rules.exitMaxOccupants} 人` : ''} → 需 ≥ ${required} 个）` });
   }
 
   // 检查记录
